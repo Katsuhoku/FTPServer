@@ -63,6 +63,8 @@ class ResourceFile:
         if self.readersCount == 0: self.writersLock.release()
         self.readersLock.release()
 
+        return True
+
     # Receives file info from client and stores it
     def upload(self, conn):
         # Waiting resource announcement (I)
@@ -86,6 +88,7 @@ class ResourceFile:
         else: conn.send(b'n') # Reply (2)
 
         # Data receving (IV)
+        self.server.aquireFileSystem()
         with open(self.filename, 'wb') as f:
             conn.settimeout(5)
             try:
@@ -99,12 +102,15 @@ class ResourceFile:
         # Confirmation (5)
         conn.send(b'100')
         print(f'Uploaded: {self.filename}')
+        self.server.releaseFileSystem()
 
         # Resource liberation (V)
         self.deletedLock.acquire()
         self.deleted = False
         self.deletedLock.release()
         self.writersLock.release()
+
+        return True
     
     # Removes a file from server
     # If there's no threads waiting in upload(), also removes this resource from server list
@@ -127,7 +133,9 @@ class ResourceFile:
         else: conn.send(b'n')
 
         # Delete file permanently (IV)
+        self.server.aquireFileSystem()
         remove(self.filename)
+        self.server.releaseFileSystem()
 
         # Confirmation (4)
         conn.send(b'100')
@@ -140,3 +148,5 @@ class ResourceFile:
 
         # Resource liberation (VI)
         self.writersLock.release()
+
+        return True
