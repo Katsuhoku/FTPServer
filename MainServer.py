@@ -1,7 +1,9 @@
 import socket
 import threading
-import systhreads
 import ResourceFile
+from os import listdir
+from datetime import datetime
+from os.path import isfile, join
 
 # Clase principal. Gestiona las conexiones entrantes, y las canaliza a sus respectivos
 # hilos. Provee métodos para bloquear el acceso al sistmea de archivos, y para gestionar
@@ -17,6 +19,9 @@ class MainServer:
         self.listLock = threading.Lock() # Semáforo para el acceso a listCount
         self.resourceLock = threading.Lock() # Semáforo para el acceso a activeResourceList
 
+         # Gets the file list in the received files directory
+        self.files = [f for f in listdir('./recv') if isfile(join('./recv', f))]
+
     # Método principal    
     def start(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -29,18 +34,25 @@ class MainServer:
                     conn, addr = s.accept()
 
                     # Handles the new connection
-                    print('Connected by', addr)
-                    op = conn.recv(1).decode('utf-8', 'replace')
-                    if op == 'up': # Upload
-                        systhreads.UploadThread(conn, self).start()
-                    elif op == 'dw': # Download
-                        systhreads.DownloadThread(conn, self).start()
-                    elif op == 'dl': # Delete
-                        systhreads.DeleteThread(conn, self).start()
-                    elif op == 'rn': # Rename
-                        pass
-                    elif op == 'ls': # List
-                        pass
+                    with conn:
+                        print('Connected by', addr)
+                        op = conn.recv(1).decode('utf-8', 'replace')
+
+                        # Obtains the desired file name and its resource (1)
+                        name = conn.recv(1024).decode('utf-u', 'replace')
+                        filename = f'recv/{name}'
+                        resource = self.getResource(filename)
+
+                        # Starts a thread with the respective function for the desired
+                        # operation
+                        if op == 'up': # Upload
+                            threading._start_new_thread(resource.upload, (conn, addr))
+                        elif op == 'dw': # Download
+                            threading._start_new_thread(resource.download, (conn, addr))
+                        elif op == 'dl': # Delete
+                            threading._start_new_thread(resource.delete, (conn, addr))
+                        elif op == 'ls': # List
+                            threading._start_new_thread(self.list, (conn, addr))
             except:
                 print("Error?")
 
@@ -74,24 +86,28 @@ class MainServer:
             print("Couldn't find the resource")
             return False
 
-    # Bloqua el sistema de archivos
-    def acquireFileSystem(self):
+    # Bloqua el sistema de archivos y actualiza la lista de archivos en el sistema
+    def updateFileList(self):
         self.fileSystemLock.acquire()
-
-    # Libera el sistema de Archivos
-    def releaseFileSystem(self):
+        self.files = [f for f in listdir('./recv') if isfile(join('./recv', f))]
         self.fileSystemLock.release()
-
-    # Incrementa el contador de hilos de listado (listCount)
-    # Equivalente a un proceso de lectura (entre los procesos List y Delete)
-    def listEnter(self):
+        
+    # Envía la lista de archivos en el sistema al cliente
+    def list(self, conn, addr):
         self.listLock.acquire()
         self.listCount += 1
         if self.listCount == 1: self.fileSystemLock.acquire()
         self.listLock.release()
 
-    # Decrementa el contador de hilos de listado (listCount)
-    def listExit(self):
+        # Sends file list one by one (1)
+        for f in self.files:
+            conn.send(f.encode('utf-8', 'replace'))
+
+        # Confirmation (2)
+        reply = conn.recv(3).decode('utf-8', 'replace')
+        if reply == '100': print(f"{datetime.now()}: 100 List Successfull, sended file list to client in {addr}")
+        else: print(f"{datetime.now()}: 404 List Failed, client in {addr} reported error.")
+
         self.listLock.acquire()
         self.listCount -= 1
         if self.listCount == 0: self.fileSystemLock.release()
