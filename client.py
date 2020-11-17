@@ -32,23 +32,17 @@ def main():
                 if len(sys.argv) < 5:
                     print('Usage error, Upload operation requires:')
                     print('py client.py <host IP> <port> <operation> <Local Filename> <Remote Filename (Optional)>')
-                    return
-
-                upload(s)
+                else: upload(s)
             elif op == 'dw':
                 if len(sys.argv) < 5:
                     print('Usage error, Download operation requires:')
                     print('py client.py <host IP> <port> <operation> <Remote Filename> <Local Filename (Optional)>')
-                    return
-
-                download(s)
+                else: download(s)
             elif op == 'dl':
                 if len(sys.argv) < 5:
                     print('Usage error, Delete operation requires:')
                     print('py client.py <host IP> <port> <operation> <Remote Filename>')
-                    return
-
-                delete(s)
+                else: delete(s)
             elif op == 'ls':
                 listf(s)
             else:
@@ -59,8 +53,9 @@ def main():
                 print('-ls for List files')
     except ConnectionRefusedError:
         print('Error: Host Unreachable.')
-    except:
+    except Exception as e:
         print('Error: Unknown error.')
+        print(e)
 
 # Upload file to server
 def upload(s):
@@ -102,10 +97,10 @@ def upload(s):
     # Sending file data (4)
     with open(lfn, 'rb') as lf:
         print('Uploading...')
-        data = lf.read(104)
+        data = lf.read(4096)
         while data:
             s.send(data)
-            data = lf.read(1024)
+            data = lf.read(4096)
 
     # Confirmation (5)
     reply = s.recv(3).decode('utf-8', 'replace')
@@ -114,6 +109,9 @@ def upload(s):
 
 # Downlaod file from server
 def download(s):
+    # Requests download
+    s.send(b'dw')
+
     rfn = sys.argv[4]
     try:
         lfn = sys.argv[5]
@@ -147,16 +145,17 @@ def download(s):
         if replace == 'n':
             print('Download Aborted')
             return
+    else: s.send(b'y')
 
     # New File (4)
     print('Downloading...')
     with open(lfn, 'wb') as lf:
         s.settimeout(5)
         try:
-            data = s.recv(1024)
+            data = s.recv(4096)
             while True:
                 lf.write(data)
-                data = s.recv(1024)
+                data = s.recv(4096)
         except socket.timeout: pass
         s.settimeout(None)
 
@@ -166,12 +165,15 @@ def download(s):
 
 # Remove file on server
 def delete(s):
+    # Requests delete
+    s.send(b'dl')
+
     rfn = sys.argv[4]
     print(f'Requested: Delete file {rfn}.')
     print('Trying access to file...')
 
     # Sends requested filename (1)
-    s.sedn(rfn.encode('utf-8', 'replace'))
+    s.send(rfn.encode('utf-8', 'replace'))
 
     # Reply (2)
     exists = s.recv(1).decode('utf-8', 'replace')
@@ -199,28 +201,25 @@ def delete(s):
 
 # List files stored in server
 def listf(s):
-    files = []
+    # Requests list
+    s.send(b'ls')
+
     print('Checking for files in server...')
 
     # Receiving file list (1)
-    s.settimeout(5)
+    s.settimeout(3)
+    buffer = b''
     try:
-        buffer = ''
-        brk = '\n'
         while True:
-            while brk not in buffer:
-                buffer += s.recv(20)
-            files.append(buffer.replace(brk, ''))
-            buffer = ''
+            buffer += s.recv(4096)
     except socket.timeout: pass
     s.settimeout(None)
 
     # Confirmation (2)
     s.send(b'100')
 
-    print('File list received.')
-    for f in files:
-        print(f)
+    print('File list received:')
+    print(buffer.decode('utf-8', 'replace'))
 
 
 

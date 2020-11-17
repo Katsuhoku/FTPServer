@@ -1,9 +1,10 @@
+import sys
 import socket
 import threading
-import ResourceFile
 from os import listdir
 from datetime import datetime
 from os.path import isfile, join
+from ResourceFile import ResourceFile
 
 # Clase principal. Gestiona las conexiones entrantes, y las canaliza a sus respectivos
 # hilos. Provee métodos para bloquear el acceso al sistmea de archivos, y para gestionar
@@ -14,6 +15,7 @@ class MainServer:
         self.PORT = port
         self.activeResourceList = [] # Lista de recursos activos
         self.listCount = 0 # Contador de hilos de listado
+        self.countID = 0 # Threads' ID counter
 
         self.fileSystemLock = threading.Lock() # Semáforo para bloquear el acceso al FS
         self.listLock = threading.Lock() # Semáforo para el acceso a listCount
@@ -25,49 +27,64 @@ class MainServer:
     # Método principal    
     def start(self):
         print('Log:')
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind((HOST, PORT))
-            print(f'{datetime.now()} Server started. Ready to receive connections')
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as self.s:
+            self.s.bind((self.HOST, self.PORT))
+            print(f'{datetime.now()} Server started on {self.HOST}, {self.PORT}. Ready to receive connections')
+            print('Press Enter to end process.')
             
             try:
                 # Server remains available
                 while True:
-                    s.listen()
-                    conn, addr = s.accept()
+                    self.s.listen()
+                    conn, addr = self.s.accept()
 
                     # Handles the new connection
                     print('Connected by', addr)
-                    op = conn.recv(1).decode('utf-8', 'replace')
+                    self.countID += 1
+                    op = conn.recv(2).decode('utf-8', 'replace')
 
-                    # Obtains the desired file name and its resource (1)
-                    name = conn.recv(1024).decode('utf-u', 'replace')
-                    filename = f'recv/{name}'
-                    resource = self.getResource(filename)
+                    if op == 'ls': # List
+                        threading._start_new_thread(self.listf, (conn, addr, self.countID))
+                        print(f'{datetime.now()} List Thread created')
+                    else:
+                        # Obtains the desired file name and its resource (1)
+                        name = conn.recv(1024).decode('utf-8', 'replace')
+                        filename = f'recv/{name}'
+                        resource = self.getResource(filename)
 
-                    # Starts a thread with the respective function for the desired
-                    # operation
-                    if op == 'up': # Upload
-                        threading._start_new_thread(resource.upload, (conn, addr))
-                    elif op == 'dw': # Download
-                        threading._start_new_thread(resource.download, (conn, addr))
-                    elif op == 'dl': # Delete
-                        threading._start_new_thread(resource.delete, (conn, addr))
-                    elif op == 'ls': # List
-                        threading._start_new_thread(self.listf, (conn, addr))
-            except:
-                print("Error?")
+                        print(f'Working... {op}')
+
+                        # Starts a thread with the respective function for the desired
+                        # operation
+                        if op == 'up': # Upload
+                            threading._start_new_thread(resource.upload, (conn, addr, self.countID))
+                            print(f'{datetime.now()} Upload Thread created')
+                        elif op == 'dw': # Download
+                            threading._start_new_thread(resource.download, (conn, addr, self.countID))
+                            print(f'{datetime.now()} Download Thread created')
+                        elif op == 'dl': # Delete
+                            threading._start_new_thread(resource.delete, (conn, addr, self.countID))
+                            print(f'{datetime.now()} Delete Thread created')
+            except OSError:
+                print(f'{datetime.now()} Server down by petition.')
+            except Exception as e:
+                print(f'{datetime.now()} Unknown Error.')
+                print(e)
 
     # Provee el recurso para el archivo indicado en el parámetro. Si no existe, lo crea.
     # El método es sincronizado consigo mismo y con removeResource
     def getResource(self, filename):
         self.resourceLock.acquire()
         # Searchs resource
+        print(f'Desired: {filename}')
         for resource in self.activeResourceList:
             if resource.filename == filename:
+                print(f'Resource selection: {resource.filename}')
                 self.resourceLock.release()
                 return resource
         
         # If resource doesn't exist, creates it
+        print('Did not exist, creating resource')
         resource = ResourceFile(filename, self)
         self.activeResourceList.append(resource)
         self.resourceLock.release()
@@ -94,7 +111,7 @@ class MainServer:
         self.fileSystemLock.release()
         
     # Envía la lista de archivos en el sistema al cliente
-    def listf(self, conn, addr):
+    def listf(self, conn, addr, ID):
         self.listLock.acquire()
         self.listCount += 1
         if self.listCount == 1: self.fileSystemLock.acquire()
@@ -103,8 +120,9 @@ class MainServer:
         with conn:
             # Sends file list one by one (1)
             for f in self.files:
-                brk = '\n'
-                conn.send(f + brk)
+                data = str(f + '\n').encode('utf-8', 'replace')
+                print('Sending...')
+                conn.send(data)
 
             # Confirmation (2)
             reply = conn.recv(3).decode('utf-8', 'replace')
@@ -115,9 +133,15 @@ class MainServer:
         self.listCount -= 1
         if self.listCount == 0: self.fileSystemLock.release()
         self.listLock.release()
-    
+
+    def listen_for_closing(self):
+        while True:
+            input()
+            break
+        self.s.close()
 
 
 if __name__ == '__main__':
-    server = MainServer()
+    server = MainServer(int(sys.argv[1]))
+    threading._start_new_thread(server.listen_for_closing, ())
     server.start()
