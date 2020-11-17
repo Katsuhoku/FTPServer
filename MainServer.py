@@ -24,8 +24,10 @@ class MainServer:
 
     # Método principal    
     def start(self):
+        print('Log:')
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind((HOST, PORT))
+            print(f'{datetime.now()} Server started. Ready to receive connections')
             
             try:
                 # Server remains available
@@ -34,25 +36,24 @@ class MainServer:
                     conn, addr = s.accept()
 
                     # Handles the new connection
-                    with conn:
-                        print('Connected by', addr)
-                        op = conn.recv(1).decode('utf-8', 'replace')
+                    print('Connected by', addr)
+                    op = conn.recv(1).decode('utf-8', 'replace')
 
-                        # Obtains the desired file name and its resource (1)
-                        name = conn.recv(1024).decode('utf-u', 'replace')
-                        filename = f'recv/{name}'
-                        resource = self.getResource(filename)
+                    # Obtains the desired file name and its resource (1)
+                    name = conn.recv(1024).decode('utf-u', 'replace')
+                    filename = f'recv/{name}'
+                    resource = self.getResource(filename)
 
-                        # Starts a thread with the respective function for the desired
-                        # operation
-                        if op == 'up': # Upload
-                            threading._start_new_thread(resource.upload, (conn, addr))
-                        elif op == 'dw': # Download
-                            threading._start_new_thread(resource.download, (conn, addr))
-                        elif op == 'dl': # Delete
-                            threading._start_new_thread(resource.delete, (conn, addr))
-                        elif op == 'ls': # List
-                            threading._start_new_thread(self.list, (conn, addr))
+                    # Starts a thread with the respective function for the desired
+                    # operation
+                    if op == 'up': # Upload
+                        threading._start_new_thread(resource.upload, (conn, addr))
+                    elif op == 'dw': # Download
+                        threading._start_new_thread(resource.download, (conn, addr))
+                    elif op == 'dl': # Delete
+                        threading._start_new_thread(resource.delete, (conn, addr))
+                    elif op == 'ls': # List
+                        threading._start_new_thread(self.listf, (conn, addr))
             except:
                 print("Error?")
 
@@ -93,22 +94,30 @@ class MainServer:
         self.fileSystemLock.release()
         
     # Envía la lista de archivos en el sistema al cliente
-    def list(self, conn, addr):
+    def listf(self, conn, addr):
         self.listLock.acquire()
         self.listCount += 1
         if self.listCount == 1: self.fileSystemLock.acquire()
         self.listLock.release()
 
-        # Sends file list one by one (1)
-        for f in self.files:
-            conn.send(f.encode('utf-8', 'replace'))
+        with conn:
+            # Sends file list one by one (1)
+            for f in self.files:
+                brk = '\n'
+                conn.send(f + brk)
 
-        # Confirmation (2)
-        reply = conn.recv(3).decode('utf-8', 'replace')
-        if reply == '100': print(f"{datetime.now()}: 100 List Successfull, sended file list to client in {addr}")
-        else: print(f"{datetime.now()}: 404 List Failed, client in {addr} reported error.")
+            # Confirmation (2)
+            reply = conn.recv(3).decode('utf-8', 'replace')
+            if reply == '100': print(f"{datetime.now()}: 100 List Successfull, sended file list to client in {addr}")
+            else: print(f"{datetime.now()}: 404 List Failed, client in {addr} reported error.")
 
         self.listLock.acquire()
         self.listCount -= 1
         if self.listCount == 0: self.fileSystemLock.release()
         self.listLock.release()
+    
+
+
+if __name__ == '__main__':
+    server = MainServer()
+    server.start()
