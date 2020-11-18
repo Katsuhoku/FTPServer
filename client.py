@@ -221,7 +221,5 @@ def listf(s):
     print('File list received:')
     print(buffer.decode('utf-8', 'replace'))
 
-
-
 if __name__ == '__main__':
     main()

@@ -1,6 +1,8 @@
 import sys
 import socket
 import threading
+import os
+import errno
 from os import listdir
 from datetime import datetime
 from os.path import isfile, join
@@ -20,8 +22,8 @@ from ResourceFile import ResourceFile
 # archivo se asocia con un y solo un recurso. Esto permite la ejecución concurrente
 # de operaciones en diferentes recursos (salvo algunas excepciones)
 class MainServer:
-    def __init__(self, port):
-        self.HOST = socket.gethostname()
+    def __init__(self,host="localhost",port=1235):
+        self.HOST = host
         self.PORT = port
         self.activeResourceList = [] # Lista de recursos arctivos
         self.listCount = 0 # Contador de hilos de operación List
@@ -30,6 +32,15 @@ class MainServer:
         self.fileSystemLock = threading.Lock() # Semáforo para bloquear el acceso al Sistema de Archivos
         self.listLock = threading.Lock() # Semáforo para el acceso a listCount
         self.resourceLock = threading.Lock() # Semáforo para el acceso a activeResourceList
+        
+        # Checa si existe el directorio
+        if not os.path.isdir('./recv'):
+            try:
+                os.mkdir('./recv')
+                print("[*]Making dir ./recv")
+            except OSError as e:
+                if e.errno != errno.EEXIST:
+                    raise
 
         # Obtiene la lista de archivos en el sistema.
         self.files = [f for f in listdir('./recv') if isfile(join('./recv', f))]
@@ -165,8 +176,15 @@ class MainServer:
 
 # Main
 if __name__ == '__main__':
+    PORT = 1235
+    try:
+        PORT = int(sys.argv[1])
+    except :
+        print("[x]Error:\n Usage: pogram <Int Port>")
+        sys.exit(1)
+
     # Crea el objeto servidor con el puerto indicado en el parámetro de la ejecución
-    server = MainServer(int(sys.argv[1]))
+    server = MainServer(port=PORT)
     # Ejecuta el hilo para la finalización de la ejecución
     threading._start_new_thread(server.listen_for_closing, ())
     # Ejecuta el servidor (no es un hilo aparte, la función se ejecuta sobre el
