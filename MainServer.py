@@ -51,15 +51,15 @@ class MainServer:
         # Creación del server socket. La cláusula 'with' maneja el socket y lo cierra
         # automáticamente al terminar
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as self.s:
-            self.s.bind((self.HOST, self.PORT))
+            self.s.bind((self.HOST, self.PORT))# Crea un socket con esos parametros
             print(f'{datetime.now()} Server started on {self.HOST}, {self.PORT}. Ready to receive connections')
             print('Press Enter to end process.')
             
             try:
                 # Server remains available
                 while True:
-                    self.s.listen()
-                    conn, addr = self.s.accept()
+                    self.s.listen() # Escucha peticciones
+                    conn, addr = self.s.accept() # Acepta una
 
                     # Handles the new connection
                     print('Connected by', addr)

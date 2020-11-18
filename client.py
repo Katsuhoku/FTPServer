@@ -1,25 +1,16 @@
 import sys
 import socket
+import argparse
 from os.path import isfile
 
 # Execution arguments order:
 # py client.py <host> <port> <operation> <file path 1> <file path 2>
 def main():
-    if len(sys.argv) < 4:
-        print('Usage error, execution must be:')
-        print('py client.py <host IP> <port> <operation> <file path 1> <file path 2>')
-        print('Where:')
-        print('Host IP: The IP of the TFTP server')
-        print('Port: The port of the server')
-        print('Operation: One of four, -up for Upload, -dw for Donwload, -dl for Delete and -ls for List server files')
-        print('File Path 1: Required by Upload (as Local file), Download and Delete (as Remote File)')
-        print('File Path 2: Required by Upload (as Remote Filename, Optional), Download (as Local Filename, Optional)')
-        return
+    argv = ParseArgs()# Resice parametros
 
-    host = sys.argv[1]
-    port = int(sys.argv[2])
-    op = sys.argv[3][1:]
-
+    host = argv.host
+    port = argv.port
+    
     # Connect to server
     try:
         print(f'Trying connection to {host}, {port}...')
@@ -28,41 +19,78 @@ def main():
             print(f'Connected to {host}, {port}')
 
             # Does desired operation
-            if op == 'up':
-                if len(sys.argv) < 5:
-                    print('Usage error, Upload operation requires:')
-                    print('py client.py <host IP> <port> <operation> <Local Filename> <Remote Filename (Optional)>')
-                else: upload(s)
-            elif op == 'dw':
-                if len(sys.argv) < 5:
-                    print('Usage error, Download operation requires:')
-                    print('py client.py <host IP> <port> <operation> <Remote Filename> <Local Filename (Optional)>')
-                else: download(s)
-            elif op == 'dl':
-                if len(sys.argv) < 5:
-                    print('Usage error, Delete operation requires:')
-                    print('py client.py <host IP> <port> <operation> <Remote Filename>')
-                else: delete(s)
-            elif op == 'ls':
+            if argv.upfile != None:
+                print("Entra a subir")
+                upload(s,argv.upfile)
+            elif argv.dowloadFile != None:
+                print("Entra a descargar")
+                download(s,argv.dowloadFile)
+            elif argv.deleteFile != None:
+                print("Entra a eliminar")
+                delete(s,argv.deleteFil)
+            elif argv.list:
+                print("Entra a lista")
                 listf(s)
-            else:
-                print('Error: Unknown operation. Please enter:')
-                print('-up for Upload')
-                print('-dw for Downlaod')
-                print('-dl for Delete')
-                print('-ls for List files')
+
     except ConnectionRefusedError:
         print('Error: Host Unreachable.')
     except Exception as e:
         print('Error: Unknown error.')
         print(e)
 
+def ParseArgs():
+    '''
+    ParseArgs() recibe de la linea de comandos
+    '''
+    parser = argparse.ArgumentParser(description='py client.py <host IP> <port> <operation> <file path 1> <file path 2>')
+    group = parser.add_mutually_exclusive_group()
+
+    parser.add_argument('host', 
+                    help='The IP of the TFTP server')
+    
+    parser.add_argument('port', 
+                    type=int,
+                    help='The port of the server')
+
+    group.add_argument('-up','--upload', 
+                    action='store',
+                    dest='upfile',
+                    default=None,
+                    help='for Upload')
+
+    group.add_argument('-dw','--dowload', 
+                    action='store',
+                    dest='dowloadFile',
+                    default=None,
+                    help='for Donwload server file')
+
+    group.add_argument('-dl','--delete', 
+                    action='store',
+                    dest='deleteFile',
+                    default=None,
+                    help='Delete a Server File')
+
+    group.add_argument('-ls','--list', 
+                    action='store_true',
+                    dest='list',
+                    default=False,
+                    help='List server files')
+    
+
+    #Lee los argumentos de la linea de comandos
+    args = parser.parse_args()
+    print(args.upfile)
+    print(args.dowloadFile)
+    print(args.deleteFile)
+    print(args.list)
+    return args
+
 # Upload file to server
-def upload(s):
+def upload(s,file):
     # Gets local filename and checks existence
-    lfn = sys.argv[4]
+    lfn = file
     if not isfile(lfn):
-        print(f'Error: Cannot find {lfn}.')
+        print(f'[x]Error: Cannot find {lfn}.')
         return
     
     # File exists, send request for Upload
@@ -108,11 +136,11 @@ def upload(s):
     else: print("Couldn't save file on server. Server reported error.")
 
 # Downlaod file from server
-def download(s):
+def download(s,file):
     # Requests download
     s.send(b'dw')
 
-    rfn = sys.argv[4]
+    rfn = file
     try:
         lfn = sys.argv[5]
     except IndexError:
@@ -164,11 +192,11 @@ def download(s):
     print(f'Downloaded: {lfn}')
 
 # Remove file on server
-def delete(s):
+def delete(s,file):
     # Requests delete
     s.send(b'dl')
 
-    rfn = sys.argv[4]
+    rfn = file
     print(f'Requested: Delete file {rfn}.')
     print('Trying access to file...')
 
@@ -184,7 +212,7 @@ def delete(s):
     # File was found in server
     print('Access granted!')
     while True:
-        remove = input('Are you sure to remove?\nThis action cannot be undone (y/n) > ')
+        remove = input('Are you sure to remove?\nThis action cannot be undone (y/n)\n$ ')
         if remove == 'y' or remove == 'n':
             # Replacement answer (3)
             s.send(remove.encode('utf-8'))
