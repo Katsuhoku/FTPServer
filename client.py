@@ -11,27 +11,24 @@ def main():
     host = argv.host
     port = argv.port
     
+
+    
     # Connect to server
     try:
-        print(f'Trying connection to {host}, {port}...')
+        if argv.verbose:
+            print(f'[+]Trying connection to {host}, {port}...')
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((host, port))
-            print(f'Connected to {host}, {port}')
-
+            print(f'[+]Connected to {host}, {port}')
             # Does desired operation
             if argv.upfile != None:
-                print("Entra a subir")
-                upload(s,argv.upfile)
+                upload(s,argv.upfile,argv.verbose)
             elif argv.dowloadFile != None:
-                print("Entra a descargar")
-                download(s,argv.dowloadFile)
+                download(s,argv.dowloadFile,argv.verbose)
             elif argv.deleteFile != None:
-                print("Entra a eliminar")
-                delete(s,argv.deleteFil)
+                delete(s,argv.deleteFil,argv.verbose)
             elif argv.list:
-                print("Entra a lista")
-                listf(s)
-
+                listf(s,argv.verbose)
     except ConnectionRefusedError:
         print('Error: Host Unreachable.')
     except Exception as e:
@@ -42,7 +39,7 @@ def ParseArgs():
     '''
     ParseArgs() recibe de la linea de comandos
     '''
-    parser = argparse.ArgumentParser(description='py client.py <host IP> <port> <operation> <file path 1> <file path 2>')
+    parser = argparse.ArgumentParser(description='Simple FTFP Client')
     group = parser.add_mutually_exclusive_group()
 
     parser.add_argument('host', 
@@ -76,17 +73,25 @@ def ParseArgs():
                     default=False,
                     help='List server files')
     
+    group.add_argument('-v','--verbose', 
+                    action='store_true',
+                    dest='verbose',
+                    default=False,
+                    help='List server files')
 
     #Lee los argumentos de la linea de comandos
     args = parser.parse_args()
-    print(args.upfile)
-    print(args.dowloadFile)
-    print(args.deleteFile)
-    print(args.list)
+
+    if args.verbose:
+        print("[upfile]",args.upfile)
+        print("[donwfile]",args.dowloadFile)
+        print("[delfile]",args.deleteFile)
+        print("[list]",args.list)
+    
     return args
 
 # Upload file to server
-def upload(s,file):
+def upload(s,file, verbose=False):
     # Gets local filename and checks existence
     lfn = file
     if not isfile(lfn):
@@ -100,17 +105,20 @@ def upload(s,file):
     except IndexError:
         rfn = lfn
 
-    print(f'Requested: Upload file {lfn} as {rfn}.')
-    print('Trying access to file...')
+    if verbose:
+        print(f'[+]Requested: Upload file {lfn} as {rfn}.')
+        print('[+]Trying access to file...')
 
     # Sends filename for server
     s.send(rfn.encode('utf-8', 'replace'))
 
     # Reply (2)
     exists = s.recv(1).decode('utf-8', 'replace')
-    print('Access granted! Processing...')
+    if verbose:
+        print('[+]Access granted! Processing...')
+
     if exists == 'y':
-        print(f'File "{rfn}" already exists in server.')
+        print(f'[-]File "{rfn}" already exists in server.')
         while True:
             replace = input('Replace? (y/n) > ')
             if replace == 'y' or replace == 'n':
@@ -132,11 +140,13 @@ def upload(s,file):
 
     # Confirmation (5)
     reply = s.recv(3).decode('utf-8', 'replace')
-    if reply == '100': print('File saved successfully on server.')
-    else: print("Couldn't save file on server. Server reported error.")
+    if reply == '100': 
+        print('[+]File saved successfully on server.')
+    else: 
+        print("[-]Couldn't save file on server. Server reported error.")
 
 # Downlaod file from server
-def download(s,file):
+def download(s,file,verbose=False):
     # Requests download
     s.send(b'dw')
 
@@ -145,9 +155,9 @@ def download(s,file):
         lfn = sys.argv[5]
     except IndexError:
         lfn = rfn
-    
-    print(f'Requested: Download file {rfn} as {lfn}.')
-    print('Trying access to file...')
+    if verbose:
+        print(f'[+]Requested: Download file {rfn} as {lfn}.')
+        print('[+]Trying access to file...')
 
     # Sends requested filename to server (1)
     s.send(rfn.encode('utf-8', 'replace'))
@@ -155,13 +165,14 @@ def download(s,file):
     # Reply (2)
     exists = s.recv(1).decode('utf-8', 'replace')
     if exists == 'n':
-        print(f'Cannot find {rfn} on server.')
+        print(f'[-]Cannot find {rfn} on server.')
         return
     
     # Checks file existence locally
-    print('Access granted! Processing...')
+    if verbose:
+        print('[+]Access granted! Processing...')
     if isfile(lfn):
-        print(f'File {lfn} already exists locally.')
+        print(f'[-]File {lfn} already exists locally.')
         while True:
             replace = input('Replace? (y/n) > ')
             if replace == 'y' or replace == 'n':
@@ -176,7 +187,7 @@ def download(s,file):
     else: s.send(b'y')
 
     # New File (4)
-    print('Downloading...')
+    print('[+]Downloading...')
     with open(lfn, 'wb') as lf:
         s.settimeout(5)
         try:
@@ -189,16 +200,17 @@ def download(s,file):
 
     # Confirmation (5)
     s.send(b'100')
-    print(f'Downloaded: {lfn}')
+    print(f'[*]Downloaded: {lfn}')
 
 # Remove file on server
-def delete(s,file):
+def delete(s,file,verbose=False):
     # Requests delete
     s.send(b'dl')
 
     rfn = file
-    print(f'Requested: Delete file {rfn}.')
-    print('Trying access to file...')
+    if verbose:
+        print(f'[+]Requested: Delete file {rfn}.')
+        print('[+]]Trying access to file...')
 
     # Sends requested filename (1)
     s.send(rfn.encode('utf-8', 'replace'))
@@ -206,11 +218,12 @@ def delete(s,file):
     # Reply (2)
     exists = s.recv(1).decode('utf-8', 'replace')
     if exists == 'n':
-        print(f'Cannot find {rfn} on server.')
+        print(f'[-]Cannot find {rfn} on server.')
         return
 
     # File was found in server
-    print('Access granted!')
+    if verbose:
+        print('[+]Access granted!')
     while True:
         remove = input('Are you sure to remove?\nThis action cannot be undone (y/n)\n$ ')
         if remove == 'y' or remove == 'n':
@@ -224,15 +237,17 @@ def delete(s,file):
 
     # Confirmation (4)
     reply = s.recv(3).decode('utf-8', 'replace')
-    if reply == '100': print('File removed successfully from server.')
-    else: print("Error: Couldn't remove file from server. Server reported error.")
+    if reply == '100': 
+        print('[+]File removed successfully from server.')
+    else: 
+        print("[-]Error: Couldn't remove file from server. Server reported error.")
 
 # List files stored in server
-def listf(s):
+def listf(s,verbose=False):
     # Requests list
     s.send(b'ls')
-
-    print('Checking for files in server...')
+    if verbose:
+        print('[+]Checking for files in server...')
 
     # Receiving file list (1)
     s.settimeout(3)
@@ -246,7 +261,7 @@ def listf(s):
     # Confirmation (2)
     s.send(b'100')
 
-    print('File list received:')
+    print('[+]File list received:')
     print(buffer.decode('utf-8', 'replace'))
 
 if __name__ == '__main__':
