@@ -52,7 +52,7 @@ class MainServer:
         # automáticamente al terminar
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as self.s:
             self.s.bind((self.HOST, self.PORT))# Crea un socket con esos parametros
-            print(f'{datetime.now()} Server started on {self.HOST}, {self.PORT}. Ready to receive connections')
+            print(f'{datetime.now()} [Server] Servuce started on {self.HOST}, {self.PORT}. Ready to receive connections.')
             print('Press Enter to end process.')
             
             try:
@@ -62,7 +62,7 @@ class MainServer:
                     conn, addr = self.s.accept() # Acepta una
 
                     # Handles the new connection
-                    print('Connected by', addr)
+                    print(f'{datetime.now()} [Server] New connection received, connected by {addr}.')
                     self.countID += 1
                     op = conn.recv(2).decode('utf-8', 'replace')
 
@@ -70,7 +70,7 @@ class MainServer:
                     # datos
                     if op == 'ls': # List
                         threading._start_new_thread(self.listf, (conn, addr, self.countID))
-                        print(f'{datetime.now()} List Thread created')
+                        print(f'{datetime.now()} [Server] List Thread created.')
                     # Cualquier otra operación necesita primero el nombre del archivo
                     # deseado para generar el recurso.
                     else:
@@ -80,23 +80,21 @@ class MainServer:
                         # Busca y obtiene el recurso asociado al archivo
                         resource = self.getResource(filename)
 
-                        print(f'Working... {op}')
-
                         # Starts a thread with the respective function for the desired
                         # operation
                         if op == 'up': # Upload
                             threading._start_new_thread(resource.upload, (conn, addr, self.countID))
-                            print(f'{datetime.now()} Upload Thread created')
+                            print(f'{datetime.now()} [Server] Upload Thread created.')
                         elif op == 'dw': # Download
                             threading._start_new_thread(resource.download, (conn, addr, self.countID))
-                            print(f'{datetime.now()} Download Thread created')
+                            print(f'{datetime.now()} [Server] Download Thread created.')
                         elif op == 'dl': # Delete
                             threading._start_new_thread(resource.delete, (conn, addr, self.countID))
-                            print(f'{datetime.now()} Delete Thread created')
+                            print(f'{datetime.now()} [Server] Delete Thread created.')
             except OSError:
-                print(f'{datetime.now()} Server down by petition.')
+                print(f'{datetime.now()} [Server] Service down by petition.')
             except Exception as e:
-                print(f'{datetime.now()} Unknown Error.')
+                print(f'{datetime.now()} [Server] Unknown Error. Service down.')
                 print(e)
 
     # Provee el recurso para el archivo indicado en el parámetro. Si no existe, lo crea.
@@ -104,17 +102,14 @@ class MainServer:
     def getResource(self, filename):
         self.resourceLock.acquire()
         # Busca el recurso en la lista del servidor
-        print(f'Desired: {filename}')
         for resource in self.activeResourceList:
             if resource.filename == filename:
                 # El recurso fue encontrado
-                print(f'Resource selection: {resource.filename}')
                 self.resourceLock.release()
                 return resource
         
         # El recurso no fue encontrado, por lo que se crea uno nuevo asociándolo al
         # archivo solicitado
-        print('Did not exist, creating resource')
         resource = ResourceFile(filename, self)
         self.activeResourceList.append(resource)
         self.resourceLock.release()
@@ -131,7 +126,6 @@ class MainServer:
             return True
         except ValueError:
             self.resourceLock.release()
-            print("Couldn't find the resource")
             return False
 
     # Bloqua el sistema de archivos y actualiza la lista de archivos en el sistema
@@ -151,13 +145,13 @@ class MainServer:
             # Sends file list one by one (1)
             for f in self.files:
                 data = str(f + '\n').encode('utf-8', 'replace')
-                print('Sending...')
+                print(f'{datetime.now()} [Server] Sending files list to client in {addr}.')
                 conn.send(data)
 
             # Confirmation (2)
             reply = conn.recv(3).decode('utf-8', 'replace')
-            if reply == '100': print(f"{datetime.now()}: 100 List Successfull, sended file list to client in {addr}")
-            else: print(f"{datetime.now()}: 404 List Failed, client in {addr} reported error.")
+            if reply == '100': print(f"{datetime.now()} [Server] 100 List Successfull, sended file list to client in {addr}.")
+            else: print(f"{datetime.now()} [Server] 404 List Failed, client in {addr} reported error.")
 
         self.listLock.acquire()
         self.listCount -= 1

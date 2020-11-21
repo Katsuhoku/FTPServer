@@ -47,14 +47,14 @@ class ResourceFile:
     # (4) Envíar el archivo
     # (5) Esperar la confirmación del cliente de la recepción del archivo
     def download(self, conn, addr, ID):
-        print(f'{datetime.now()} Thread #{ID}: Preparing for download, trying to aquire resource...')
+        print(f'{datetime.now()} [Thread #{ID}] Preparing for download, trying to aquire resource...')
         # Resource adquisition (I)
         self.readersLock.acquire()
         self.readersCount += 1
         if self.readersCount == 1: self.writersLock.acquire()
         self.readersLock.release()
 
-        print(f'{datetime.now()} Thread #{ID}: Resource Aquired.')
+        print(f'{datetime.now()} [Thread #{ID}] Resource Aquired.')
 
         with conn:
             # Checking file existence (II)
@@ -64,38 +64,37 @@ class ResourceFile:
             if self.deleted:
                 self.deletedLock.release()
                 conn.send(b'n') # Reply (2)
-                print(f"{datetime.now()}: 201 Download Failed, {self.filename} doesn't exist")
+                print(f"{datetime.now()} [Thread #{ID}] Download Failed, {self.filename} doesn't exist")
             else:
                 self.deletedLock.release()
 
                 # File send (III)
                 # Comprueba que el archivo exista en el servidor
                 if isfile(self.filename):
-                    print(f'{datetime.now()} Thread #{ID}: File found. Waiting for confirmation to send...')
+                    print(f'{datetime.now()} [Thread #{ID}] File found. Waiting for confirmation to send...')
                     # Reply (2)
                     conn.send(b'y')
                     # If exists in client, asks for sending (3)
                     send = conn.recv(1).decode('utf-8', 'replace')
                     if send == 'n':
-                        print(f"{datetime.now()}: 301 Download Aborted, by client in {addr}")
+                        print(f"{datetime.now()} [Thread #{ID}] Download Aborted by client in {addr}")
                     else:
                         # Sending file data (4)
-                        print(f'{datetime.now()} Thread #{ID}: Download Confirmed.')
+                        print(f'{datetime.now()} [Thread #{ID}] Download Confirmed.')
                         with open(self.filename, 'rb') as f:
                             data = f.read(4096)
-                            print(f'{datetime.now()} Thread #{ID}: Sending...')
+                            print(f'{datetime.now()} [Thread #{ID}] Sending file to client in {addr}.')
                             while data:
                                 conn.send(data)
                                 data = f.read(4096)
-                                print(f'{datetime.now()} Thread #{ID}: Sending...')
 
                             # Confirmation
                             reply = conn.recv(3).decode('utf-8', 'replace')
-                            if reply == '100': print(f"{datetime.now()}: 100 Download Successfull, {self.filename} sended to client in {addr}")
-                            else: print(f"{datetime.now()}: 401 Download Failed, client in {addr} reported error.")
+                            if reply == '100': print(f"{datetime.now()} [Thread #{ID}] Download Successfull, {self.filename} sended to client in {addr}")
+                            else: print(f"{datetime.now()} [Thread #{ID}] Download Failed, client in {addr} reported error.")
                 else:
                     conn.send(b'n') # Reply (2)
-                    print(f"{datetime.now()}: 201 Download Failed, {self.filename} doesn't exist")
+                    print(f"{datetime.now()} [Thread #{ID}] Download Failed, {self.filename} doesn't exist")
 
         # Resource liberation (IV)
         self.readersLock.acquire()
@@ -111,6 +110,7 @@ class ResourceFile:
     # (4) Recibir los datos del archivo
     # (5) Envíar una confirmación del archivo recibido
     def upload(self, conn, addr, ID):
+        print(f'{datetime.now()} [Thread #{ID}] Preparing for upload, trying to aquire resource...')
         # Waiting resource announcement (I)
         # Incrementa el contador de hilos upload() en espera
         self.uploadLock.acquire()
@@ -123,6 +123,8 @@ class ResourceFile:
         self.uploadCount -= 1
         self.uploadLock.release()
 
+        print(f'{datetime.now()} [Thread #{ID}] Resource Aquired.')
+
         with conn:
             # Checking file existence (III)
             exists = isfile(self.filename)
@@ -133,16 +135,18 @@ class ResourceFile:
                 # Si el archivo existe, pregunta al cliente por sobreescribir
                 replace = conn.recv(1).decode('utf-8', 'replace')
                 if replace == 'n':
-                    print(f"{datetime.now()}: 302 Upload Aborted, by client in {addr}")
+                    print(f"{datetime.now()} [Thread #{ID}] Upload Aborted by client in {addr}")
             else: conn.send(b'n') # Reply (2)
 
             # Data receving (IV)
             # Si el archivo no existía, o existía y se confirmó la sobreescritura
             if exists and replace == 'y' or not exists:
+                print(f'{datetime.now()} [Thread #{ID}] Upload Confirmed.')
                 with open(self.filename, 'wb') as f:
                     conn.settimeout(5)
                     try:
                         # Recibe los datos del archivo (4)
+                        print(f'{datetime.now()} [Thread #{ID}] Receiving file from client in {addr}.')
                         data = conn.recv(4096)
                         while True:
                             f.write(data)
@@ -152,11 +156,12 @@ class ResourceFile:
 
                 # Confirmation (5)
                 conn.send(b'100')
-                print(f"{datetime.now()}: 100 Upload Successfull, stored {self.filename} from client in {addr}")
+                print(f"{datetime.now()} [Thread #{ID}] Upload Successfull, stored {self.filename} from client in {addr}")
 
                 # File list update (V)
                 # Actualiza la lista de archivos en el servidor
                 self.server.updateFileList()
+                print(f"{datetime.now()} [Thread #{ID}] File list of server was updated.")
 
         # Resource liberation (VI)
         self.deletedLock.acquire()
@@ -172,6 +177,7 @@ class ResourceFile:
     # no se puede revertir)
     # (4) Eliminar el archivo y confirmar al usuario la eliminación
     def delete(self, conn, addr, ID):
+        print(f'{datetime.now()} [Thread #{ID}] Preparing for delete, trying to aquire resource...')
         # Resource Adquisition (I)
         self.writersLock.acquire()
 
@@ -183,7 +189,7 @@ class ResourceFile:
             if self.deleted:
                 self.deletedLock.release()
                 conn.send(b'n') # Reply (2)
-                print(f"{datetime.now()}: 201 Download Failed, {self.filename} doesn't exist")
+                print(f"{datetime.now()} [Thread #{ID}] Delete Failed, {self.filename} doesn't exist.")
             else:
                 self.deleted = True
                 self.deletedLock.release()
@@ -194,30 +200,36 @@ class ResourceFile:
                     conn.send(b'y')
                     # Remove? (3)
                     # Pregunta al usuario por última vez si desea eliminar el archivo
+                    print(f'{datetime.now()} [Thread #{ID}] File found. Waiting for confirmation to delete...')
                     remove = conn.recv(1).decode('utf-8', 'replace')
                     if remove == 'n':
-                        print(f"{datetime.now()}: 303 Delete Aborted, by client in {addr}")
+                        print(f"{datetime.now()} [Thread #{ID}] Delete Aborted, by client in {addr}")
                     else:
+                        print(f'{datetime.now()} [Thread #{ID}] Delete Confirmed.')
                         # Delete file permanently (IV)
                         os.remove(self.filename)
 
                         # Confirmation (4)
                         conn.send(b'100')
+                        print(f"{datetime.now()}: Delete Successfull, {self.filename} was succesfully deleted.")
 
                         # Removing resource from server (V)
                         # Elimina este recurso de la lista del servidor, solo si no
                         # quedan hilos upload() esperando.
                         self.uploadLock.acquire()
-                        if self.uploadCount == 0: self.server.removeResource(self)
+                        if self.uploadCount == 0:
+                            self.server.removeResource(self)
+                            print(f"{datetime.now()} [Thread #{ID}] Resource object for {self.filename} was removed from the system.")
                         self.uploadLock.release()
 
                         # File list update (VI)
                         # Actualiza la lista de archivos en el servidor
                         self.server.updateFileList()
-                        print(f"{datetime.now()}: 100 Delete Successfull, {self.filename} was succesfully deleted")
+                        print(f"{datetime.now()} [Thread #{ID}] File list of server was updated.")
+                        
                 else:
                     conn.send(b'n') # Reply (2)
-                    print(f"{datetime.now()}: 201 Download Failed, {self.filename} doesn't exist")
+                    print(f"{datetime.now()}: Download Failed, {self.filename} doesn't exist")
 
         # Resource liberation (VII)
         self.writersLock.release()
