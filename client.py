@@ -4,68 +4,65 @@ import argparse
 from os.path import isfile
 
 # Execution arguments order:
-# py client.py <host> <port> <operation> <file path 1> <file path 2>
+# py client.py <host> <port> <operation> <file path>
 def main():
     argv = ParseArgs()# Resice parametros
 
     host = argv.host
     port = argv.port
     
-
-    
     # Connect to server
     try:
         if argv.verbose:
-            print(f'[+]Trying connection to {host}, {port}...')
+            print(f'[+] Trying connection to {host}, {port}...')
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((host, port))
-            print(f'[+]Connected to {host}, {port}')
+            print(f'[+] Connected to {host}, {port}')
             # Does desired operation
-            if argv.upfile != None:
-                upload(s,argv.upfile,argv.verbose)
-            elif argv.dowloadFile != None:
-                download(s,argv.dowloadFile,argv.verbose)
-            elif argv.deleteFile != None:
-                delete(s,argv.deleteFil,argv.verbose)
+            if argv.upload != None:
+                upload(s, argv.upload, argv.verbose)
+            elif argv.download != None:
+                download(s, argv.download, argv.verbose)
+            elif argv.delete != None:
+                delete(s, argv.delete, argv.verbose)
             elif argv.list:
-                listf(s,argv.verbose)
+                listf(s, argv.verbose)
     except ConnectionRefusedError:
-        print('Error: Host Unreachable.')
+        print('[-] Error: Host Unreachable.')
     except Exception as e:
-        print('Error: Unknown error.')
+        print('[!] Error: Unknown error.')
         print(e)
 
+# ParseArgs() recibe los argumentos de ejecución
+# desde línea de comandos.
 def ParseArgs():
-    '''
-    ParseArgs() recibe de la linea de comandos
-    '''
-    parser = argparse.ArgumentParser(description='Simple FTFP Client')
+    parser = argparse.ArgumentParser(description='Simple FTP Client')
     group = parser.add_mutually_exclusive_group()
 
     parser.add_argument('host', 
-                    help='The IP of the TFTP server')
+                    help='The IP of the FTP server.')
     
     parser.add_argument('port', 
                     type=int,
-                    help='The port of the server')
+                    help='The port of the server.')
 
     group.add_argument('-up','--upload', 
                     action='store',
-                    dest='upfile',
+                    dest='upload',
                     default=None,
-                    help='for Upload')
+                    help='Upload the specified file to server.')
 
-    group.add_argument('-dw','--dowload', 
+    group.add_argument('-dw','--download', 
                     action='store',
-                    dest='dowloadFile',
+                    dest='download',
                     default=None,
-                    help='for Donwload server file')
+                    help='Download the specified file from server (if exists).')
 
     group.add_argument('-dl','--delete', 
                     action='store',
-                    dest='deleteFile',
+                    dest='delete',
                     default=None,
-                    help='Delete a Server File')
+                    help='Delete the specified file from server.')
 
     group.add_argument('-ls','--list', 
                     action='store_true',
@@ -77,15 +74,15 @@ def ParseArgs():
                     action='store_true',
                     dest='verbose',
                     default=False,
-                    help='List server files')
+                    help='Show details of excecution.')
 
     #Lee los argumentos de la linea de comandos
     args = parser.parse_args()
 
     if args.verbose:
-        print("[upfile]",args.upfile)
-        print("[donwfile]",args.dowloadFile)
-        print("[delfile]",args.deleteFile)
+        print("[upload]",args.upload)
+        print("[download]",args.download)
+        print("[delete]",args.delete)
         print("[list]",args.list)
     
     return args
@@ -95,7 +92,7 @@ def upload(s,file, verbose=False):
     # Gets local filename and checks existence
     lfn = file
     if not isfile(lfn):
-        print(f'[x]Error: Cannot find {lfn}.')
+        print(f'[x] Error: Cannot find {lfn}.')
         return
     
     # File exists, send request for Upload
@@ -106,8 +103,8 @@ def upload(s,file, verbose=False):
         rfn = lfn
 
     if verbose:
-        print(f'[+]Requested: Upload file {lfn} as {rfn}.')
-        print('[+]Trying access to file...')
+        print(f'[+] Requested: Upload file {lfn} as {rfn}.')
+        print('[+] Trying access to file...')
 
     # Sends filename for server
     s.send(rfn.encode('utf-8', 'replace'))
@@ -115,10 +112,10 @@ def upload(s,file, verbose=False):
     # Reply (2)
     exists = s.recv(1).decode('utf-8', 'replace')
     if verbose:
-        print('[+]Access granted! Processing...')
+        print('[+] Access granted! Processing...')
 
     if exists == 'y':
-        print(f'[-]File "{rfn}" already exists in server.')
+        print(f'[-] File "{rfn}" already exists in server.')
         while True:
             replace = input('Replace? (y/n) > ')
             if replace == 'y' or replace == 'n':
@@ -127,12 +124,12 @@ def upload(s,file, verbose=False):
                 break
             print('(Expected "y" for replace, or "n" for cancel. Try again.)')
         if replace == 'n':
-            print('Upload Aborted')
+            print('[-] Upload Aborted')
             return
 
     # Sending file data (4)
     with open(lfn, 'rb') as lf:
-        print('Uploading...')
+        print('[+] Uploading...')
         data = lf.read(4096)
         while data:
             s.send(data)
@@ -141,9 +138,9 @@ def upload(s,file, verbose=False):
     # Confirmation (5)
     reply = s.recv(3).decode('utf-8', 'replace')
     if reply == '100': 
-        print('[+]File saved successfully on server.')
+        print('[+] File saved successfully on server.')
     else: 
-        print("[-]Couldn't save file on server. Server reported error.")
+        print("[-] Couldn't save file on server. Server reported error.")
 
 # Downlaod file from server
 def download(s,file,verbose=False):
@@ -156,8 +153,8 @@ def download(s,file,verbose=False):
     except IndexError:
         lfn = rfn
     if verbose:
-        print(f'[+]Requested: Download file {rfn} as {lfn}.')
-        print('[+]Trying access to file...')
+        print(f'[+] Requested: Download file {rfn} as {lfn}.')
+        print('[+] Trying access to file...')
 
     # Sends requested filename to server (1)
     s.send(rfn.encode('utf-8', 'replace'))
@@ -165,14 +162,14 @@ def download(s,file,verbose=False):
     # Reply (2)
     exists = s.recv(1).decode('utf-8', 'replace')
     if exists == 'n':
-        print(f'[-]Cannot find {rfn} on server.')
+        print(f'[-] Cannot find {rfn} on server.')
         return
     
     # Checks file existence locally
     if verbose:
-        print('[+]Access granted! Processing...')
+        print('[+] Access granted! Processing...')
     if isfile(lfn):
-        print(f'[-]File {lfn} already exists locally.')
+        print(f'[-] File {lfn} already exists locally.')
         while True:
             replace = input('Replace? (y/n) > ')
             if replace == 'y' or replace == 'n':
@@ -182,12 +179,12 @@ def download(s,file,verbose=False):
             print('(Expected "y" for replace, or "n" for cancel. Try again.)')
         
         if replace == 'n':
-            print('Download Aborted')
+            print('[-] Download Aborted')
             return
     else: s.send(b'y')
 
     # New File (4)
-    print('[+]Downloading...')
+    print('[+] Downloading...')
     with open(lfn, 'wb') as lf:
         s.settimeout(5)
         try:
@@ -200,7 +197,7 @@ def download(s,file,verbose=False):
 
     # Confirmation (5)
     s.send(b'100')
-    print(f'[*]Downloaded: {lfn}')
+    print(f'[*] Downloaded: {lfn}')
 
 # Remove file on server
 def delete(s,file,verbose=False):
@@ -209,8 +206,8 @@ def delete(s,file,verbose=False):
 
     rfn = file
     if verbose:
-        print(f'[+]Requested: Delete file {rfn}.')
-        print('[+]]Trying access to file...')
+        print(f'[+] Requested: Delete file {rfn}.')
+        print('[+] Trying access to file...')
 
     # Sends requested filename (1)
     s.send(rfn.encode('utf-8', 'replace'))
@@ -218,12 +215,12 @@ def delete(s,file,verbose=False):
     # Reply (2)
     exists = s.recv(1).decode('utf-8', 'replace')
     if exists == 'n':
-        print(f'[-]Cannot find {rfn} on server.')
+        print(f'[-] Cannot find {rfn} on server.')
         return
 
     # File was found in server
     if verbose:
-        print('[+]Access granted!')
+        print('[+] Access granted!')
     while True:
         remove = input('Are you sure to remove?\nThis action cannot be undone (y/n)\n$ ')
         if remove == 'y' or remove == 'n':
@@ -232,22 +229,22 @@ def delete(s,file,verbose=False):
             break
         print('(Expected "y" for replace, or "n" for cancel. Try again.)')
     if remove == 'n':
-        print('Delete Aborted')
+        print('[-] Delete Aborted')
         return
 
     # Confirmation (4)
     reply = s.recv(3).decode('utf-8', 'replace')
     if reply == '100': 
-        print('[+]File removed successfully from server.')
+        print('[+] File removed successfully from server.')
     else: 
-        print("[-]Error: Couldn't remove file from server. Server reported error.")
+        print("[-] Error: Couldn't remove file from server. Server reported error.")
 
 # List files stored in server
 def listf(s,verbose=False):
     # Requests list
     s.send(b'ls')
     if verbose:
-        print('[+]Checking for files in server...')
+        print('[+] Checking for files in server...')
 
     # Receiving file list (1)
     s.settimeout(3)
@@ -261,8 +258,11 @@ def listf(s,verbose=False):
     # Confirmation (2)
     s.send(b'100')
 
-    print('[+]File list received:')
-    print(buffer.decode('utf-8', 'replace'))
+    files = buffer.decode('utf-8', 'replace')
+    if files == '': print('[+] Server is empty. No files found.')
+    else:
+        print('[+] File list received:')
+        print(files)
 
 if __name__ == '__main__':
     main()

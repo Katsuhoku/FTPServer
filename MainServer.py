@@ -1,12 +1,11 @@
 import sys
+import errno
 import socket
 import threading
-import os
-import errno
-from os import listdir
 from datetime import datetime
-from os.path import isfile, join
+from os import listdir, mkdir
 from ResourceFile import ResourceFile
+from os.path import isfile, isdir, join
 
 # MainServer
 # Clase principal. Gestiona las conexiones entrantes y las canaliza a sus respectivos
@@ -22,7 +21,7 @@ from ResourceFile import ResourceFile
 # archivo se asocia con un y solo un recurso. Esto permite la ejecución concurrente
 # de operaciones en diferentes recursos (salvo algunas excepciones)
 class MainServer:
-    def __init__(self,host="localhost",port=1235):
+    def __init__(self,host=socket.gethostname(),port=42069):
         self.HOST = host
         self.PORT = port
         self.activeResourceList = [] # Lista de recursos arctivos
@@ -34,10 +33,10 @@ class MainServer:
         self.resourceLock = threading.Lock() # Semáforo para el acceso a activeResourceList
         
         # Checa si existe el directorio
-        if not os.path.isdir('./recv'):
+        if not isdir('./recv'):
             try:
-                os.mkdir('./recv')
-                print("[*]Making dir ./recv")
+                print(f'{datetime.now()} [Server] Creating directory ./recv for incoming files.')
+                mkdir('./recv')
             except OSError as e:
                 if e.errno != errno.EEXIST:
                     raise
@@ -47,12 +46,11 @@ class MainServer:
 
     # Método principal, inicia el programa
     def start(self):
-        print('Server Log:')
         # Creación del server socket. La cláusula 'with' maneja el socket y lo cierra
         # automáticamente al terminar
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as self.s:
             self.s.bind((self.HOST, self.PORT))# Crea un socket con esos parametros
-            print(f'{datetime.now()} [Server] Servuce started on {self.HOST}, {self.PORT}. Ready to receive connections.')
+            print(f'{datetime.now()} [Server] Service started on {self.HOST}, {self.PORT}. Ready to receive connections.')
             print('Press Enter to end process.')
             
             try:
@@ -170,15 +168,14 @@ class MainServer:
 
 # Main
 if __name__ == '__main__':
-    PORT = 1235
+    print('Server Log:')
     try:
         PORT = int(sys.argv[1])
+        server = MainServer(port=PORT)
     except :
-        print("[x]Error:\n Usage: pogram <Int Port>")
-        sys.exit(1)
+        print(f'{datetime.now()} [Server] Port not specified. Using default port.')
+        server = MainServer()
 
-    # Crea el objeto servidor con el puerto indicado en el parámetro de la ejecución
-    server = MainServer(port=PORT)
     # Ejecuta el hilo para la finalización de la ejecución
     threading._start_new_thread(server.listen_for_closing, ())
     # Ejecuta el servidor (no es un hilo aparte, la función se ejecuta sobre el
