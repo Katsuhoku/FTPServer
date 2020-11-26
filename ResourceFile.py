@@ -1,3 +1,17 @@
+# Benemérita Universidad Autónoma de Puebla
+# Facultad de Ciencias de la Computación
+# Programación Concurrente y Paralela
+#
+# Proyecto Final: Sistemas concurrentes, programación de un
+# servidor FTP simple con gestión multiusuario concurrente.
+#
+# Arizmendi Ramírez Esiel Kevin, 201737811
+# Coria Rios Marco Antonio, 201734576
+# Ruiz Lozano Paulo César, 201727952
+#
+# Otoño 2020
+# 27/Noviembre/2020
+
 import os
 import socket
 import threading
