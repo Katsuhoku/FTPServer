@@ -205,9 +205,6 @@ class ResourceFile:
                 conn.send(b'n') # Reply (2)
                 print(f"{datetime.now()} [Thread #{ID}] Delete Failed, {self.filename} doesn't exist.")
             else:
-                self.deleted = True
-                self.deletedLock.release()
-
                 # Checking file existence (III)
                 if isfile(self.filename):
                     # Reply (2)
@@ -240,10 +237,15 @@ class ResourceFile:
                         # Actualiza la lista de archivos en el servidor
                         self.server.updateFileList()
                         print(f"{datetime.now()} [Thread #{ID}] File list of server was updated.")
+
+                        # File deleted
+                        self.deleted = True
                         
                 else:
                     conn.send(b'n') # Reply (2)
                     print(f"{datetime.now()}: Download Failed, {self.filename} doesn't exist")
+
+                self.deletedLock.release()
 
         # Resource liberation (VII)
         self.writersLock.release()

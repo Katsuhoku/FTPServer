@@ -236,7 +236,7 @@ def delete(s,file,verbose=False):
     if verbose:
         print('[+] Access granted!')
     while True:
-        remove = input('Are you sure to remove?\nThis action cannot be undone (y/n)\n$ ')
+        remove = input('Are you sure to remove?\nThis action cannot be undone (y/n) > ')
         if remove == 'y' or remove == 'n':
             # Replacement answer (3)
             s.send(remove.encode('utf-8'))
